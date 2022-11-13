@@ -1,0 +1,172 @@
+---
+title: "TriComm2022"
+output: html_document
+date: '2022-11-11'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+``` {r}
+# Set shit up
+setwd("/Users/alexgeorgiev/Desktop/Tricomm")
+# Cleans up old stuff in R
+rm(list=ls())
+library(tidyverse)
+library(ggcorrplot)
+source("myfunctions.R")
+```
+
+``` {r}
+data <- read.csv("TriCoMM_DNC_data.csv")
+head(data)
+summary(data)
+```
+
+``` {r}
+ sapply(data, class)
+```
+
+``` {r}
+# Distribution and correlation plots
+ numerics <- select(data, AvgReduxinNighttimeAnnualTemp_Celsius, PercentPopIncomeBelow2xPovertyLevel, Percent_GreenSpace, long, lat)
+pairs(numerics, upper.panel = panel.cor, diag.panel = panel.hist)
+```
+
+``` {r}
+# Correlation matrix
+# Correlation matrix
+numerics <- numerics %>%
+  rename(PovertyPop = PercentPopIncomeBelow2xPovertyLevel,
+         GreenSpace = Percent_GreenSpace,
+         TempRedux = AvgReduxinNighttimeAnnualTemp_Celsius)
+corr <- cor(numerics)
+#
+# Correlogram
+cg <- ggcorrplot(corr, hc.order = TRUE, 
+                 type = "lower", 
+                 lab = TRUE, 
+                 lab_size = 3,
+                 method = "circle", 
+                 colors = c("tomato2", "white", "springgreen3"),
+                 title ="Correlogram", 
+                 ggtheme = theme_bw)
+cg
+ggsave("Correlogram.jpg", cg)
+```
+
+``` {r}
+# Fit linear regression model to dataset and view model summary
+linModel <- lm(TempRedux~GreenSpace, data=numerics)
+summary(linModel)
+```
+
+``` {r}
+# Plot the linear regression
+linRegPlot <- ggplot(numerics, aes(GreenSpace, TempRedux)) +
+  geom_point(color="deepskyblue4") +
+  geom_smooth(method='lm', se=FALSE, color="deepskyblue1") + 
+  labs(x="Green Space (%)", y=" Avg Temp Reduction (\u00B0C)", title='Average Nighttime Temperature Reduction vs. Green Space')
+linRegPlot
+ggsave("GreenVRedux.jpg", linRegPlot)
+```
+
+``` {r}
+# All data vs just population >= 50% in poverty
+# Fit linear regression model to dataset and view model summary
+allPopLin <- lm(GreenSpace~PovertyPop, data=numerics)
+allPopLinSum <- summary(allPopLin)
+povGreenSpacePlot <- ggplot(numerics, aes(PovertyPop, GreenSpace)) +
+  geom_point(color="deepskyblue4") +
+  geom_smooth(method='lm', se=FALSE, color="deepskyblue1") + 
+  labs(x="Impoverished Population (%)", y="Green Space (%)", title='Green Space Percentage vs. Impoverished Population')
+povGreenSpacePlot
+ggsave("greenSpacePovPop.jpg", povGreenSpacePlot)
+```
+
+``` {r}
+# Just population >= 50% poverty
+aboveFifty <- numerics %>%
+  filter(PovertyPop >= 50)
+aboveFiftyLin <- lm(GreenSpace~PovertyPop, data=aboveFifty)
+aboveFiftyLinSum <- summary(aboveFiftyLin)
+aboveFiftyLinSum
+```
+
+```{r}
+# Linear regression between percent GS and temp reduction
+gtLin <- lm(TempRedux~GreenSpace, data=numerics)
+gtLinSum <- summary(gtLin)
+gtLinSum
+b0 <- gtLin$coefficients[1]
+b1 <- gtLin$coefficients[2]
+gtLin$coefficients
+```
+
+``` {r}
+# ----- Optimization -----
+# Define big C, the cost from 0% to g%
+C <- function(g) {
+  a = 0
+  b = 1
+  if (0 <= g & g < 60) {
+    return ((b/3)*(g-60)^3 + a*g)
+  } else {
+    return (a*g)
+  }
+}
+```
+
+``` {r}
+
+```
+
+``` {r}
+# Define Ti, the estimated temperature redux for each census block
+t <- function(g) {
+  return (b0 + b1*g)
+}
+
+# Define Si, the score for each census block
+s <- function(g, c, p) {
+  return (t(g)[1]*c*p)
+}
+```
+``` {r}
+# Find p
+#numerics$PovertyPop[1]
+#print(t(50)[1])
+```
+
+``` {r}
+# Total score function
+sumS <- function(g) {
+  totalScore = 0
+  for (i in 1:193) {
+    si = s(g[i], C(g[i]), numerics$PovertyPop[i])
+    totalScore = totalScore + si
+  }
+  return (totalScore)
+}
+
+```
+
+``` {r}
+gsVec <- as.vector(numerics$GreenSpace)
+```
+
+
+``` {r}
+# Optimize the total score function
+#library(CVXR)
+#objective <- Minimize(SumS(g))
+#prob1 <- Problem(objective, list(g >= 0, g <= 100))
+```
+
+``` {r}
+#sumS(gsVec)
+#gsVec[1]
+#C(gsVec[1])
+#numerics$PovertyPop[1]
+```
